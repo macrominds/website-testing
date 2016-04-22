@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit colors="true">
+    <testsuites>
+        <testsuite name="macrominds website testing test suite">
+            <directory>./tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <const name="HOST" value="0.0.0.0" />
+        <const name="PORT" value="1349" />
+        <const name="DOCROOT" value="./tests/web" />
+    </php>
+</phpunit>
