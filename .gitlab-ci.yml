@@ -1,0 +1,20 @@
+cache:
+  paths:
+  - vendor/
+
+before_script:
+- apt-get update -yqq
+- apt-get install -yqq libzip-dev git
+- docker-php-ext-install zip
+- curl -sS https://getcomposer.org/installer | php
+- php composer.phar install
+
+test:php5.6-cli:
+  image: php:5.6-cli
+  script:
+  - bin/phpunit
+  
+test:php7-cli:
+  image: php:7-cli
+  script:
+  - bin/phpunit
