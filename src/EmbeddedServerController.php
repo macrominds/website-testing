@@ -77,7 +77,7 @@ class EmbeddedServerController
      *                             java-tools. If you set host to 0.0.0.0, the server will be 
      *                             bound to 0.0.0.0 while connection tests are performed against 127.0.0.1.
      * @param int    $port         port to which the server shall listen.
-     * @param string $documentRoot string path to the servers' document root 
+     * @param string $documentRoot path to the servers' document root 
      * @param string $router       path to router script
      *
      * @throws \ŖuntimeException if the documentRoot-directory does not exist
@@ -88,13 +88,12 @@ class EmbeddedServerController
     {
         $this->host = $host;
         $this->port = $port;
-        $this->documentRoot = realpath(__DIR__.'/../'.$documentRoot);
-        if ($this->documentRoot === false) {
+        $this->documentRoot = $documentRoot;
+        if (!file_exists($this->documentRoot)) {
             //the directory doesn't exist
-            throw new \RuntimeException('DocumentRoot directory '.$documentRoot.' does not exist or '
-                    .'we dont have executable permissions to all directories in'
-                    .'the hierarchy: .'.(__DIR__.'/../'.$documentRoot));
+            throw new \RuntimeException('DocumentRoot directory '.(realpath('.').'/'.$documentRoot).' does not exist');
         }
+        // TODO validate router script
         $this->router = $router;
     }
 
