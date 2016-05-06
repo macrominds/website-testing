@@ -170,6 +170,15 @@ class EmbeddedServerController
 
         return $host;
     }
+    /**
+     * Returns the port this server listens to.
+     *
+     * @return int the port. E.g. 80
+     */
+    public function getPort()
+    {
+        return $this->port;
+    }
 
     private function startAndWaitUntilServerIsUp($timeoutInSeconds)
     {

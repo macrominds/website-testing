@@ -104,13 +104,21 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
     public function controllerShouldReturnCorrectHost()
     {
         $this->serverController = new EmbeddedServerController('0.0.0.0', PORT, DOCROOT);
-        $this->assertEquals($this->serverController->getHost(), '127.0.0.1');
+        $this->assertEquals('127.0.0.1', $this->serverController->getHost());
 
         $this->serverController = new EmbeddedServerController('192.168.1.100', PORT, DOCROOT);
-        $this->assertEquals($this->serverController->getHost(), '192.168.1.100');
+        $this->assertEquals('192.168.1.100', $this->serverController->getHost());
 
-        $this->assertEquals($this->serverController->getHost('0.0.0.0'), '127.0.0.1');
-        $this->assertEquals($this->serverController->getHost('127.0.0.1'), '127.0.0.1');
-        $this->assertEquals($this->serverController->getHost('192.168.1.100'), '192.168.1.100');
+        $this->assertEquals('127.0.0.1', $this->serverController->getHost('0.0.0.0'));
+        $this->assertEquals('127.0.0.1', $this->serverController->getHost('127.0.0.1'));
+        $this->assertEquals('192.168.1.100', $this->serverController->getHost('192.168.1.100'));
+    }
+    /**
+     * @test
+     */
+    public function controllerShouldReturnCorrectPort()
+    {
+        $this->serverController = new EmbeddedServerController('0.0.0.0', PORT, DOCROOT);
+        $this->assertEquals(PORT, $this->serverController->getPort());
     }
 }
