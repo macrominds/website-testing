@@ -149,25 +149,28 @@ class EmbeddedServerController
         return true;
     }
     /**
-     * Returns the host to request for $host or this server 
+     * Returns the host to request for $host or this server.
+     *
      * @param string $host optional host. If null or not given, then this 
-     * servers host is used. If host is 0.0.0.0, then 127.0.0.1 is returned, 
-     * otherwise host will be returned without modifications.
+     *                     servers host is used. If host is 0.0.0.0, then 127.0.0.1 is returned, 
+     *                     otherwise host will be returned without modifications.
+     *
      * @return string the host. E.g. 127.0.0.1 for 0.0.0.0 or 192.168.1.100 for
-     * 192.168.1.100.
+     *                192.168.1.100.
      */
-    public function getHost($host=null)
+    public function getHost($host = null)
     {
         if ($host === null) {
             $host = $this->host;
         }
-        if($host==='0.0.0.0'){
+        if ($host === '0.0.0.0') {
             //fsockopen on 0.0.0.0 does not work on windows.
             $host = '127.0.0.1';
         }
+
         return $host;
     }
-    
+
     private function startAndWaitUntilServerIsUp($timeoutInSeconds)
     {
         $this->processHandle = $this->startServer();
