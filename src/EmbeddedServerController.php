@@ -134,14 +134,7 @@ class EmbeddedServerController
      */
     public function canConnect($host = null)
     {
-        if ($host === null) {
-            if ($this->host === '0.0.0.0') {
-                //fsockopen on 0.0.0.0 does not work on windows.
-                $host = '127.0.0.1';
-            } else {
-                $host = $this->host;
-            }
-        }
+        $host = $this->getHost($host);
         // Disable error handler for now
         set_error_handler(function () { return true; });
         // Try to open a connection 
@@ -154,6 +147,28 @@ class EmbeddedServerController
         fclose($sp);
 
         return true;
+    }
+    /**
+     * Returns the host to request for $host or this server.
+     *
+     * @param string $host optional host. If null or not given, then this 
+     *                     servers host is used. If host is 0.0.0.0, then 127.0.0.1 is returned, 
+     *                     otherwise host will be returned without modifications.
+     *
+     * @return string the host. E.g. 127.0.0.1 for 0.0.0.0 or 192.168.1.100 for
+     *                192.168.1.100.
+     */
+    public function getHost($host = null)
+    {
+        if ($host === null) {
+            $host = $this->host;
+        }
+        if ($host === '0.0.0.0') {
+            //fsockopen on 0.0.0.0 does not work on windows.
+            $host = '127.0.0.1';
+        }
+
+        return $host;
     }
 
     private function startAndWaitUntilServerIsUp($timeoutInSeconds)
