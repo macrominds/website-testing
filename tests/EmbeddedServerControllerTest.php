@@ -121,4 +121,23 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
         $this->serverController = new EmbeddedServerController('0.0.0.0', PORT, DOCROOT);
         $this->assertEquals(PORT, $this->serverController->getPort());
     }
+    /**
+     * @test
+     * @expectedException \RuntimeException
+     */
+    public function controllerShouldThrowExceptionWhenInvalidDocumentRootIsSpecified()
+    {
+        $this->serverController = new EmbeddedServerController(HOST, PORT, 'non-existing-docroot');
+        $this->fail('Controller should have thrown an Exception when given a non-existing docroot');
+    }
+
+    /**
+     * @test
+     * @expectedException \RuntimeException
+     */
+    public function controllerShouldThrowExceptionWhenInvalidRouterScriptIsSpecified()
+    {
+        $this->serverController = new EmbeddedServerController(HOST, PORT, DOCROOT, 'non-existing-routerscript');
+        $this->fail('Controller should have thrown an Exception when given a non-existing routerscript');
+    }
 }

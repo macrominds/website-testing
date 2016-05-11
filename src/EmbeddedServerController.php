@@ -70,7 +70,7 @@ class EmbeddedServerController
      */
     private $router;
     /**
-     * Create instance. documentRoot will be validated directly.
+     * Create instance. DocumentRoot and routerscript will be validated directly.
      * 
      * @param string $host         host on which the server shall run. For localhost, best practice 
      *                             is to use 0.0.0.0. That enables access from outside and especially from
@@ -80,7 +80,7 @@ class EmbeddedServerController
      * @param string $documentRoot path to the servers' document root 
      * @param string $router       path to router script
      *
-     * @throws \ŖuntimeException if the documentRoot-directory does not exist
+     * @throws \ŖuntimeException if the documentRoot-directory or routerscript does not exist
      *                            or the script doesn't have executable permissions on all directories
      *                            in the hierarchy of it's realpath. You will receive a detailed message in that case.
      */
@@ -93,8 +93,11 @@ class EmbeddedServerController
             //the directory doesn't exist
             throw new \RuntimeException('DocumentRoot directory '.(realpath('.').'/'.$documentRoot).' does not exist');
         }
-        // TODO validate router script
         $this->router = $router;
+        if ($this->router !== null && !file_exists($this->router)) {
+            //the routerscript doesn't exist
+            throw new \RuntimeException('Routerscript '.(realpath('.').'/'.$router).' does not exist');
+        }
     }
 
     /**
@@ -256,9 +259,14 @@ class EmbeddedServerController
         //the latter two options wouldn't kill child processes.
         //taken from: php.net/manual/en/function.proc-terminate.php#113918
         $pstatus = proc_get_status($this->processHandle);
+        //get the parent pid of the process we want to kill
         $pid = $pstatus['pid'];
         if ($this->isWindows()) {
             //windows kill
+          //Notice that php running in safe mode will only allow exec to execute
+          //files in the safe_mode_exec_dir. 
+          //See http://php.net/manual/en/function.exec.php
+          //TODO verify that exec is able to perform the task before starting the server  
           exec("taskkill /F /T /PID $pid >nul 2>&1");
         } else {
             //linux kill alone is not enough.
@@ -276,10 +284,11 @@ class EmbeddedServerController
             //identified as child-processes in my test-scenarios.
             //
             //we provide a script that kills all child processes as well.
-            //get the parent pid of the process we want to kill
 
             //use ps to get all the children of this process, and kill them
-            $pids = preg_split('/\s+/', `ps -o pid --no-heading --ppid $pid`);
+            //notice that shell_exec could be disabled (when php is running in safe mode).
+            //TODO verify that shell_exec is enabled before starting the server.
+            $pids = preg_split('/\s+/', shell_exec("ps -o pid --no-heading --ppid $pid"));
             foreach ($pids as $id) {
                 if (is_numeric($id)) {
                     echo "Killing $id\n";
