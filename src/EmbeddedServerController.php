@@ -85,9 +85,11 @@ class EmbeddedServerController
      *                            in the hierarchy of it's realpath. You will receive a detailed message in that case.
      *                            Also thrown if the functions `shell_exec` or `proc_open` are disabled. You will receive
      *                            an according error message.
+     *                            Also thrown if the wrong php variant is used. Any variant other than php cli will cause a RuntimeException to be thrown.
      */
     public function __construct($host, $port, $documentRoot, $router = null)
     {
+        self::verifyCorrectPhpVariant();
         self::verifyThatEssentialFunctionsAreEnabledOrThrowException();
         $this->host = $host;
         $this->port = $port;
@@ -100,6 +102,19 @@ class EmbeddedServerController
         if ($this->router !== null && !file_exists($this->router)) {
             //the routerscript doesn't exist
             throw new \RuntimeException('Routerscript '.(realpath('.').'/'.$router).' does not exist');
+        }
+    }
+    /**
+     * Verifies that we are running php cli and not any variant, because only
+     * php cli provides the built-in-server.
+     *
+     * @throws \RuntimeException if the wrong php variant is used
+     */
+    private static function verifyCorrectPhpVariant()
+    {
+        $sapiName = php_sapi_name();
+        if ($sapiName !== 'cli') {
+            throw new \RuntimeException("Wrong php variant '$sapiName' used. Please make sure to run php 'cli'.");
         }
     }
     /**
@@ -249,17 +264,35 @@ class EmbeddedServerController
 
     private function waitUntilServerIsUp($timeoutInSeconds)
     {
+        return $this->waitUntil(function () {
+            //callback function. Will be requested until it returns true or the timeout is reached.
+            return $this->canConnect();
+        }, $timeoutInSeconds);
+    }
+
+    /**
+     * Waits until a the $callback function returns true or the timeout is reached.
+     *
+     * @param callable $callback
+     * @param int      $timeoutInSeconds
+     *
+     * @return bool condition finally met
+     */
+    private function waitUntil($callback, $timeoutInSeconds)
+    {
         $start = microtime(true);
-        $connected = false;
-        // Try to connect until the time spent exceeds the timeout
-        while (microtime(true) - $start <= (int) $timeoutInSeconds) {
-            if ($this->canConnect()) {
-                $connected = true;
-                break;
+        $condition = $callback();
+        if (!$condition) {
+            // Try to connect until the time spent exceeds the timeout
+            while (microtime(true) - $start <= (int) $timeoutInSeconds) {
+                if ($callback()) {
+                    $condition = true;
+                    break;
+                }
             }
         }
 
-        return $connected;
+        return $condition;
     }
 
     /**
@@ -312,6 +345,29 @@ class EmbeddedServerController
             shell_exec("kill -9 $pid");
         }
     }
+
+    /**
+     * stop the server (kill it), if it is running. 
+     * Also wait, until we cannot connect anymore.
+     * It is save to call this even if the server has not been started.
+     *
+     * @param int $timeoutInSeconds timeout in seconds.
+     */
+    public function stopAndWaitForConnectionLoss($timeoutInSeconds = 10)
+    {
+        $this->stop();
+        // wait until we can't connect to the server anymore
+        $this->waitUntilServerIsDown($timeoutInSeconds);
+    }
+
+    private function waitUntilServerIsDown($timeoutInSeconds)
+    {
+        return $this->waitUntil(function () {
+            //callback function. Will be requested until it returns true or the timeout is reached.
+            return !$this->canConnect();
+        }, $timeoutInSeconds);
+    }
+
     /**
      * Checks if a php function is available and enabled.
      *

@@ -39,10 +39,10 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
     public function tearDown()
     {
         if ($this->serverController !== null) {
-            $this->serverController->stop();
+            $this->serverController->stopAndWaitForConnectionLoss();
         }
         if ($this->serverController2 !== null) {
-            $this->serverController2->stop();
+            $this->serverController2->stopAndWaitForConnectionLoss();
         }
 
         $this->serverController = null;
@@ -140,5 +140,19 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
     {
         $this->serverController = new EmbeddedServerController(HOST, PORT, DOCROOT, 'non-existing-routerscript');
         $this->fail('Controller should have thrown an Exception when given a non-existing routerscript');
+    }
+    /**
+     * @test
+     */
+    public function shouldThrowExceptionWhenWrongPhpVersionIsUsed()
+    {
+        // we start up the server, which then runs with php cli-server
+        $this->serverController = new EmbeddedServerController(HOST, PORT, DOCROOT);
+        $server = $this->serverController;
+        $server->start();
+        $host = $server->getHost();
+        $port = $server->getPort();
+        $content = file_get_contents("http://$host:$port/index.php");
+        $this->assertEquals('Wrong php variant \'cli-server\' used. Please make sure to run php \'cli\'.', $content);
     }
 }
