@@ -13,8 +13,16 @@ test:php5.6-cli:
   image: php:5.6-cli
   script:
   - bin/phpunit
+  # Check behavior when essential functions are missing:
+  - php -d disable_functions=fsockopen vendor/phpunit/phpunit/phpunit --no-configuration tests/MissingFunctionsTest.php
+  - php -d disable_functions=proc_open vendor/phpunit/phpunit/phpunit --no-configuration tests/MissingFunctionsTest.php
+  - php -d disable_functions=shell_exec vendor/phpunit/phpunit/phpunit --no-configuration tests/MissingFunctionsTest.php
   
 test:php7-cli:
   image: php:7-cli
   script:
   - bin/phpunit
+  # Check behavior when essential functions are missing:
+  - php -d disable_functions=fsockopen vendor/phpunit/phpunit/phpunit --no-configuration tests/MissingFunctionsTest.php
+  - php -d disable_functions=proc_open vendor/phpunit/phpunit/phpunit --no-configuration tests/MissingFunctionsTest.php
+  - php -d disable_functions=shell_exec vendor/phpunit/phpunit/phpunit --no-configuration tests/MissingFunctionsTest.php

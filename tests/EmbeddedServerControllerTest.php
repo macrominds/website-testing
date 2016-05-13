@@ -68,6 +68,7 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
         //throws \RuntimeException if docroot is not there.
         $this->serverController = new EmbeddedServerController(HOST, PORT, $dir);
     }
+
     /**
      * @test
      */
