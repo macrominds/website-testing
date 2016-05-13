@@ -44,11 +44,23 @@ class MissingFunctionsTest extends \PHPUnit_Framework_TestCase
      */
     public function shouldThrowExceptionWhenEssentialFunctionsAreNotAvailable()
     {
-        $disabledFunctions = array('fsockopen', 'proc_open', 'shell_exec');
-        foreach ($disabledFunctions as $functionName) {
-            $this->assertFalse(is_callable($functionName) && false === stripos(ini_get('disable_functions'), $functionName),
-                    "Function $functionName should be disabled. Make sure to call this test with the command described in the comment of this method. (hint: php -d disable_functions=fsockopen ...)");
+        $actuallyDisabledFunctions = explode(',', ini_get('disable_functions'));
+        $expectedDisabledFunctions = array('fsockopen', 'proc_open', 'shell_exec');
+
+        //make sure at least one function is disabled
+        $this->assertGreaterThan(0, count($actuallyDisabledFunctions), 'At least one of the functions '.implode(', ', $expectedDisabledFunctions).' must be disabled for this test to work. Make sure to call this test with the command described in the comment of this method. (hint: php -d disable_functions=fsockopen ...)');
+
+        //make sure that at least one _essential_ function is disabled
+        $foundAtLeastOneEssentialFunction = false;
+        foreach ($actuallyDisabledFunctions as $functionName) {
+            if (in_array($functionName, $expectedDisabledFunctions)) {
+                $foundAtLeastOneEssentialFunction = true;
+                break;
+            }
         }
+        $this->assertTrue($foundAtLeastOneEssentialFunction, 'At least one of the functions '.implode(', ', $expectedDisabledFunctions).' must be disabled for this test to work. Make sure to call this test with the command described in the comment of this method. (hint: php -d disable_functions=fsockopen ...)');
+
+        //test requirements are all set. Now do the actual test. (We expect a \RuntimeException)
         new EmbeddedServerController('0.0.0.0', 1234, 'tests/web/');
     }
 }
