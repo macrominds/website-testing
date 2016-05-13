@@ -83,9 +83,12 @@ class EmbeddedServerController
      * @throws \ŖuntimeException if the documentRoot-directory or routerscript does not exist
      *                            or the script doesn't have executable permissions on all directories
      *                            in the hierarchy of it's realpath. You will receive a detailed message in that case.
+     *                            Also thrown if the functions `shell_exec` or `proc_open` are disabled. You will receive
+     *                            an according error message.
      */
     public function __construct($host, $port, $documentRoot, $router = null)
     {
+        self::verifyThatEssentialFunctionsAreEnabledOrThrowException();
         $this->host = $host;
         $this->port = $port;
         $this->documentRoot = $documentRoot;
@@ -99,7 +102,24 @@ class EmbeddedServerController
             throw new \RuntimeException('Routerscript '.(realpath('.').'/'.$router).' does not exist');
         }
     }
-
+    /**
+     * Verifies that the functions `shell_exec`, `proc_open` and `fsockopen` are
+     * enabled. These functions are necessary to start, check and stop the server.
+     *
+     * @throws \RuntimeException if any of the essential functions is not available. You will receive a detailed error message.
+     */
+    private static function verifyThatEssentialFunctionsAreEnabledOrThrowException()
+    {
+        if (!self::isFunctionEnabled('shell_exec')) {
+            throw new \RuntimeException('The php function `shell_exec` is disabled. Without this function we would not be able to kill the server after it has been started. You need to turn it on in your php.ini. While you\'re there, also make sure that `proc_open` and `fsockopen` are enabled.');
+        }
+        if (!self::isFunctionEnabled('proc_open')) {
+            throw new \RuntimeException('The php function `proc_open` is disabled. Without this function we would not be able to start the server. You need to turn it on in your php.ini. While you\'re there, make sure that `fsockopen` is enabled.');
+        }
+        if (!self::isFunctionEnabled('fsockopen')) {
+            throw new \RuntimeException('The php function `fsockopen` is disabled. Without this function we would not be able to check if the server is running. You need to turn it on in your php.ini.');
+        }
+    }
     /**
      * Start the server.
      * 
@@ -263,11 +283,7 @@ class EmbeddedServerController
         $pid = $pstatus['pid'];
         if ($this->isWindows()) {
             //windows kill
-          //Notice that php running in safe mode will only allow exec to execute
-          //files in the safe_mode_exec_dir. 
-          //See http://php.net/manual/en/function.exec.php
-          //TODO verify that exec is able to perform the task before starting the server  
-          exec("taskkill /F /T /PID $pid >nul 2>&1");
+          shell_exec("taskkill /F /T /PID $pid >nul 2>&1");
         } else {
             //linux kill alone is not enough.
             //Furthermore: php sadly returns the pid of the sh that started the 
@@ -286,17 +302,26 @@ class EmbeddedServerController
             //we provide a script that kills all child processes as well.
 
             //use ps to get all the children of this process, and kill them
-            //notice that shell_exec could be disabled (when php is running in safe mode).
-            //TODO verify that shell_exec is enabled before starting the server.
             $pids = preg_split('/\s+/', shell_exec("ps -o pid --no-heading --ppid $pid"));
             foreach ($pids as $id) {
                 if (is_numeric($id)) {
                     echo "Killing $id\n";
-                    exec("kill -9 $id"); //9 is the SIGKILL signal
+                    shell_exec("kill -9 $id"); //9 is the SIGKILL signal
                 }
             }
-            exec("kill -9 $pid");
-            proc_close($this->processHandle);
+            shell_exec("kill -9 $pid");
         }
+    }
+    /**
+     * Checks if a php function is available and enabled.
+     *
+     * @param string $functionName name of the function (e.g. 'shell_exec')
+     *
+     * @return bool true, if the function is enabled (thus it can be used), false if not.
+     */
+    private static function isFunctionEnabled($functionName)
+    {
+        //bishops suggestion on http://stackoverflow.com/questions/21581560/php-how-to-know-if-server-allows-shell-exec#21581873
+        return is_callable($functionName) && false === stripos(ini_get('disable_functions'), $functionName);
     }
 }
