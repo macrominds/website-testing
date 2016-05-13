@@ -3,6 +3,10 @@
     <testsuites>
         <testsuite name="macrominds website testing test suite">
             <directory>./tests</directory>
+            <!-- MissingFunctionsTest.php requires disabled php functions
+            It is therefore excluded in standard phpunit-testing.
+            For executing this test, see .gitlab-ci.yml -->
+            <exclude>./tests/MissingFunctionsTest.php</exclude>
         </testsuite>
     </testsuites>
     <php>

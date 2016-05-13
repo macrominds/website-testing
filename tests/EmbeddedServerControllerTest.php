@@ -39,10 +39,10 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
     public function tearDown()
     {
         if ($this->serverController !== null) {
-            $this->serverController->stop();
+            $this->serverController->stopAndWaitForConnectionLoss();
         }
         if ($this->serverController2 !== null) {
-            $this->serverController2->stop();
+            $this->serverController2->stopAndWaitForConnectionLoss();
         }
 
         $this->serverController = null;
@@ -68,6 +68,7 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
         //throws \RuntimeException if docroot is not there.
         $this->serverController = new EmbeddedServerController(HOST, PORT, $dir);
     }
+
     /**
      * @test
      */
@@ -97,5 +98,61 @@ class EmbeddedServerControllerTest extends \PHPUnit_Framework_TestCase
         } catch (\RuntimeException $e) {
             //success
         }
+    }
+    /**
+     * @test
+     */
+    public function controllerShouldReturnCorrectHost()
+    {
+        $this->serverController = new EmbeddedServerController('0.0.0.0', PORT, DOCROOT);
+        $this->assertEquals('127.0.0.1', $this->serverController->getHost());
+
+        $this->serverController = new EmbeddedServerController('192.168.1.100', PORT, DOCROOT);
+        $this->assertEquals('192.168.1.100', $this->serverController->getHost());
+
+        $this->assertEquals('127.0.0.1', $this->serverController->getHost('0.0.0.0'));
+        $this->assertEquals('127.0.0.1', $this->serverController->getHost('127.0.0.1'));
+        $this->assertEquals('192.168.1.100', $this->serverController->getHost('192.168.1.100'));
+    }
+    /**
+     * @test
+     */
+    public function controllerShouldReturnCorrectPort()
+    {
+        $this->serverController = new EmbeddedServerController('0.0.0.0', PORT, DOCROOT);
+        $this->assertEquals(PORT, $this->serverController->getPort());
+    }
+    /**
+     * @test
+     * @expectedException \RuntimeException
+     */
+    public function controllerShouldThrowExceptionWhenInvalidDocumentRootIsSpecified()
+    {
+        $this->serverController = new EmbeddedServerController(HOST, PORT, 'non-existing-docroot');
+        $this->fail('Controller should have thrown an Exception when given a non-existing docroot');
+    }
+
+    /**
+     * @test
+     * @expectedException \RuntimeException
+     */
+    public function controllerShouldThrowExceptionWhenInvalidRouterScriptIsSpecified()
+    {
+        $this->serverController = new EmbeddedServerController(HOST, PORT, DOCROOT, 'non-existing-routerscript');
+        $this->fail('Controller should have thrown an Exception when given a non-existing routerscript');
+    }
+    /**
+     * @test
+     */
+    public function shouldThrowExceptionWhenWrongPhpVersionIsUsed()
+    {
+        // we start up the server, which then runs with php cli-server
+        $this->serverController = new EmbeddedServerController(HOST, PORT, DOCROOT);
+        $server = $this->serverController;
+        $server->start();
+        $host = $server->getHost();
+        $port = $server->getPort();
+        $content = file_get_contents("http://$host:$port/index.php");
+        $this->assertEquals('Wrong php variant \'cli-server\' used. Please make sure to run php \'cli\'.', $content);
     }
 }

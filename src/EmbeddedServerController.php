@@ -70,7 +70,7 @@ class EmbeddedServerController
      */
     private $router;
     /**
-     * Create instance. documentRoot will be validated directly.
+     * Create instance. DocumentRoot and routerscript will be validated directly.
      * 
      * @param string $host         host on which the server shall run. For localhost, best practice 
      *                             is to use 0.0.0.0. That enables access from outside and especially from
@@ -80,12 +80,17 @@ class EmbeddedServerController
      * @param string $documentRoot path to the servers' document root 
      * @param string $router       path to router script
      *
-     * @throws \ŖuntimeException if the documentRoot-directory does not exist
+     * @throws \ŖuntimeException if the documentRoot-directory or routerscript does not exist
      *                            or the script doesn't have executable permissions on all directories
      *                            in the hierarchy of it's realpath. You will receive a detailed message in that case.
+     *                            Also thrown if the functions `shell_exec` or `proc_open` are disabled. You will receive
+     *                            an according error message.
+     *                            Also thrown if the wrong php variant is used. Any variant other than php cli will cause a RuntimeException to be thrown.
      */
     public function __construct($host, $port, $documentRoot, $router = null)
     {
+        self::verifyCorrectPhpVariant();
+        self::verifyThatEssentialFunctionsAreEnabledOrThrowException();
         $this->host = $host;
         $this->port = $port;
         $this->documentRoot = $documentRoot;
@@ -93,10 +98,43 @@ class EmbeddedServerController
             //the directory doesn't exist
             throw new \RuntimeException('DocumentRoot directory '.(realpath('.').'/'.$documentRoot).' does not exist');
         }
-        // TODO validate router script
         $this->router = $router;
+        if ($this->router !== null && !file_exists($this->router)) {
+            //the routerscript doesn't exist
+            throw new \RuntimeException('Routerscript '.(realpath('.').'/'.$router).' does not exist');
+        }
     }
-
+    /**
+     * Verifies that we are running php cli and not any variant, because only
+     * php cli provides the built-in-server.
+     *
+     * @throws \RuntimeException if the wrong php variant is used
+     */
+    private static function verifyCorrectPhpVariant()
+    {
+        $sapiName = php_sapi_name();
+        if ($sapiName !== 'cli') {
+            throw new \RuntimeException("Wrong php variant '$sapiName' used. Please make sure to run php 'cli'.");
+        }
+    }
+    /**
+     * Verifies that the functions `shell_exec`, `proc_open` and `fsockopen` are
+     * enabled. These functions are necessary to start, check and stop the server.
+     *
+     * @throws \RuntimeException if any of the essential functions is not available. You will receive a detailed error message.
+     */
+    private static function verifyThatEssentialFunctionsAreEnabledOrThrowException()
+    {
+        if (!self::isFunctionEnabled('shell_exec')) {
+            throw new \RuntimeException('The php function `shell_exec` is disabled. Without this function we would not be able to kill the server after it has been started. You need to turn it on in your php.ini. While you\'re there, also make sure that `proc_open` and `fsockopen` are enabled.');
+        }
+        if (!self::isFunctionEnabled('proc_open')) {
+            throw new \RuntimeException('The php function `proc_open` is disabled. Without this function we would not be able to start the server. You need to turn it on in your php.ini. While you\'re there, make sure that `fsockopen` is enabled.');
+        }
+        if (!self::isFunctionEnabled('fsockopen')) {
+            throw new \RuntimeException('The php function `fsockopen` is disabled. Without this function we would not be able to check if the server is running. You need to turn it on in your php.ini.');
+        }
+    }
     /**
      * Start the server.
      * 
@@ -134,14 +172,7 @@ class EmbeddedServerController
      */
     public function canConnect($host = null)
     {
-        if ($host === null) {
-            if ($this->host === '0.0.0.0') {
-                //fsockopen on 0.0.0.0 does not work on windows.
-                $host = '127.0.0.1';
-            } else {
-                $host = $this->host;
-            }
-        }
+        $host = $this->getHost($host);
         // Disable error handler for now
         set_error_handler(function () { return true; });
         // Try to open a connection 
@@ -154,6 +185,37 @@ class EmbeddedServerController
         fclose($sp);
 
         return true;
+    }
+    /**
+     * Returns the host to request for $host or this server.
+     *
+     * @param string $host optional host. If null or not given, then this 
+     *                     servers host is used. If host is 0.0.0.0, then 127.0.0.1 is returned, 
+     *                     otherwise host will be returned without modifications.
+     *
+     * @return string the host. E.g. 127.0.0.1 for 0.0.0.0 or 192.168.1.100 for
+     *                192.168.1.100.
+     */
+    public function getHost($host = null)
+    {
+        if ($host === null) {
+            $host = $this->host;
+        }
+        if ($host === '0.0.0.0') {
+            //fsockopen on 0.0.0.0 does not work on windows.
+            $host = '127.0.0.1';
+        }
+
+        return $host;
+    }
+    /**
+     * Returns the port this server listens to.
+     *
+     * @return int the port. E.g. 80
+     */
+    public function getPort()
+    {
+        return $this->port;
     }
 
     private function startAndWaitUntilServerIsUp($timeoutInSeconds)
@@ -202,17 +264,35 @@ class EmbeddedServerController
 
     private function waitUntilServerIsUp($timeoutInSeconds)
     {
+        return $this->waitUntil(function () {
+            //callback function. Will be requested until it returns true or the timeout is reached.
+            return $this->canConnect();
+        }, $timeoutInSeconds);
+    }
+
+    /**
+     * Waits until a the $callback function returns true or the timeout is reached.
+     *
+     * @param callable $callback
+     * @param int      $timeoutInSeconds
+     *
+     * @return bool condition finally met
+     */
+    private function waitUntil($callback, $timeoutInSeconds)
+    {
         $start = microtime(true);
-        $connected = false;
-        // Try to connect until the time spent exceeds the timeout
-        while (microtime(true) - $start <= (int) $timeoutInSeconds) {
-            if ($this->canConnect()) {
-                $connected = true;
-                break;
+        $condition = $callback();
+        if (!$condition) {
+            // Try to connect until the time spent exceeds the timeout
+            while (microtime(true) - $start <= (int) $timeoutInSeconds) {
+                if ($callback()) {
+                    $condition = true;
+                    break;
+                }
             }
         }
 
-        return $connected;
+        return $condition;
     }
 
     /**
@@ -232,10 +312,11 @@ class EmbeddedServerController
         //the latter two options wouldn't kill child processes.
         //taken from: php.net/manual/en/function.proc-terminate.php#113918
         $pstatus = proc_get_status($this->processHandle);
+        //get the parent pid of the process we want to kill
         $pid = $pstatus['pid'];
         if ($this->isWindows()) {
             //windows kill
-          exec("taskkill /F /T /PID $pid >nul 2>&1");
+          shell_exec("taskkill /F /T /PID $pid >nul 2>&1");
         } else {
             //linux kill alone is not enough.
             //Furthermore: php sadly returns the pid of the sh that started the 
@@ -252,18 +333,51 @@ class EmbeddedServerController
             //identified as child-processes in my test-scenarios.
             //
             //we provide a script that kills all child processes as well.
-            //get the parent pid of the process we want to kill
 
             //use ps to get all the children of this process, and kill them
-            $pids = preg_split('/\s+/', `ps -o pid --no-heading --ppid $pid`);
+            $pids = preg_split('/\s+/', shell_exec("ps -o pid --no-heading --ppid $pid"));
             foreach ($pids as $id) {
                 if (is_numeric($id)) {
                     echo "Killing $id\n";
-                    exec("kill -9 $id"); //9 is the SIGKILL signal
+                    shell_exec("kill -9 $id"); //9 is the SIGKILL signal
                 }
             }
-            exec("kill -9 $pid");
-            proc_close($this->processHandle);
+            shell_exec("kill -9 $pid");
         }
+    }
+
+    /**
+     * stop the server (kill it), if it is running. 
+     * Also wait, until we cannot connect anymore.
+     * It is save to call this even if the server has not been started.
+     *
+     * @param int $timeoutInSeconds timeout in seconds.
+     */
+    public function stopAndWaitForConnectionLoss($timeoutInSeconds = 10)
+    {
+        $this->stop();
+        // wait until we can't connect to the server anymore
+        $this->waitUntilServerIsDown($timeoutInSeconds);
+    }
+
+    private function waitUntilServerIsDown($timeoutInSeconds)
+    {
+        return $this->waitUntil(function () {
+            //callback function. Will be requested until it returns true or the timeout is reached.
+            return !$this->canConnect();
+        }, $timeoutInSeconds);
+    }
+
+    /**
+     * Checks if a php function is available and enabled.
+     *
+     * @param string $functionName name of the function (e.g. 'shell_exec')
+     *
+     * @return bool true, if the function is enabled (thus it can be used), false if not.
+     */
+    private static function isFunctionEnabled($functionName)
+    {
+        //bishops suggestion on http://stackoverflow.com/questions/21581560/php-how-to-know-if-server-allows-shell-exec#21581873
+        return is_callable($functionName) && false === stripos(ini_get('disable_functions'), $functionName);
     }
 }
