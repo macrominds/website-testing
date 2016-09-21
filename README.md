@@ -1,4 +1,6 @@
 # Cross-Platform Helper for functional testing of websites.
+[![Build Status](https://travis-ci.org/macrominds/website-testing.svg)](https://travis-ci.org/macrominds/website-testing)
+
 ## Start built-in php server from php unit test
 macrominds/website-testing allows you to start the built-in php server directly inside unit tests or 
 other php scripts. Especially useful for functional testing. Helps to reduce
